@@ -1,5 +1,9 @@
 /*
 Transpiles assembly like code to binary. And yeah, I know compile isn't the right word, but it is easier to type.
+===================================================================
+Compile normally (cc compile.c for instance). 
+The program outputs the transpiled c code to stdout and errors to stderr, so you can do 
+./compile example.asm > example.c
 */
 
 #include <errno.h>
