@@ -12,43 +12,13 @@ The program outputs the transpiled c code to stdout and errors to stderr, so you
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+
 #define inside(low, mid, high) ((low) <= (mid) && (mid) <= (high))
 typedef uint16_t fint;
 
 enum {
-	R0 = 0,
-	R1,
-	R2,
-	R3,
-	R4,
-	R5,
-	R6,
-	R7,
-	R8,
-	R9,
-	R10,
-	R11,
-	R12,
-	R13,
-	R14,
-	R15,
-	R16,
-	R17,
-	R18,
-	R19,
-	R20,
-	R21,
-	R22,
-	R23,
-	R24,
-	R25,
-	R26,
-	R27,
-	R28,
-	R29,
-	SP,
-	PC,
-	REG_COUNT
+	SP = 30,
+	PC = 31,
 };
 
 enum {
@@ -70,6 +40,10 @@ enum {
 	OP_ST,
 	OP_PUSH,
 	OP_POP,
+	OP_ADDI,
+	OP_SUBI,
+	OP_SHLI,
+	OP_SHRI,
 	OP_FLAG = 0x3f
 };
 
@@ -112,7 +86,7 @@ int compileFile(FILE *fin) {
 
 	char name[255];
 	int offset;
-	if (fscanf(fin, "%s %d", name, &offset)) {
+	if (fscanf(fin, "%s %d", name, &offset) == 2) {
 		printf("static uint16_t %s_mem[] = {\n", name);
 	} else {
 		return 1;
@@ -202,12 +176,37 @@ int compileLine(char *line, fint *ret) {
 				ok = 0;
 				goto cleanup;
 
-			case OP_LDI: {
+			case OP_LDI:
 				if (ind >= 1) {
 					snprintf(ERROR_TEXT, 255, "Too many parameters (1 expected)");
 					ok = 0;
 					goto cleanup;
 				}
+				break;
+
+			case OP_NOT:
+			case OP_JMP:
+			case OP_PUSH:
+			case OP_POP:
+			case OP_SUB:
+				if (ind >= 1) {
+					snprintf(ERROR_TEXT, 255, "Too many parameters (1 expected)");
+					ok = 0;
+					goto cleanup;
+				}
+				/* fall through */
+
+			default:
+				if (ind >= 2) {
+					snprintf(ERROR_TEXT, 255, "Too many parameters (2 expected)");
+					ok = 0;
+					goto cleanup;
+				}
+				break;
+		}
+
+		switch (opcode) {
+			case OP_LDI: {
 				int val;
 				if (!parseNum(token, &val)) {
 					ok = 0;
@@ -223,31 +222,35 @@ int compileLine(char *line, fint *ret) {
 				break;
 			}
 
-			case OP_NOT:
-			case OP_JMP:
-			case OP_PUSH:
-			case OP_POP:
-				if (ind >= 1) {
-					snprintf(ERROR_TEXT, 255, "Too many parameters (1 expected)");
-					ok = 0;
-					goto cleanup;
+			case OP_ADDI:
+			case OP_SUBI:
+			case OP_SHLI:
+			case OP_SHRI:
+				if (ind == 1) {
+					int val;
+					if (!parseNum(token, &val)) {
+						ok = 0;
+						goto cleanup;
+					}
+					if (val < 0 || val >= (1 << 6)) {
+						snprintf(ERROR_TEXT, 255, "Number not in range [0, 2^6): '%s'", token);
+						ok = 0;
+						goto cleanup;
+					}
+					*ret |= (fint)val << (1 - ind) * 5;
+					ind++;
+					break;
 				}
 				/* fall through */
 
 			default: {
-				if (ind >= 2) {
-					snprintf(ERROR_TEXT, 255, "Too many parameters (2 expected)");
-					ok = 0;
-					goto cleanup;
-				}
 				fint reg;
 				if (!getRegister(token, &reg)) {
 					ok = 0;
 					goto cleanup;
 				}
-				*ret |= reg << (1-ind)*5;
+				*ret |= reg << (1 - ind) * 5;
 				ind++;
-				break;
 			}
 		}
 	}
@@ -265,6 +268,7 @@ int compileLine(char *line, fint *ret) {
 		case OP_JMP:
 		case OP_PUSH:
 		case OP_POP:
+		case OP_SUB:
 			if (ind != 1) {
 				snprintf(ERROR_TEXT, 255, "Too few parameters (1 expected)");
 				ok = 0;
@@ -369,6 +373,14 @@ int getInstruction(char *symbol, fint *ret) {
 		*ret = OP_PUSH;
 	} else if (strcasecmp(symbol, "POP") == 0) {
 		*ret = OP_POP;
+	} else if (strcasecmp(symbol, "ADDI") == 0) {
+		*ret = OP_ADDI;
+	} else if (strcasecmp(symbol, "SUBI") == 0) {
+		*ret = OP_SUBI;
+	} else if (strcasecmp(symbol, "SHLI") == 0) {
+		*ret = OP_SHLI;
+	} else if (strcasecmp(symbol, "SHRI") == 0) {
+		*ret = OP_SHRI;
 	} else if (strcasecmp(symbol, "FLAG") == 0) {
 		*ret = OP_FLAG;
 	} else {
@@ -399,7 +411,7 @@ int getRegister(char *symbol, fint *ret) {
 				goto special_name;
 		}
 
-		if (num <= R29) {
+		if (num <= 32) {
 			*ret = num;
 			return 1;
 		} else {
