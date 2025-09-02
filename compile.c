@@ -12,6 +12,7 @@ The program outputs the transpiled c code to stdout and errors to stderr, so you
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <stdbool.h>
 
 #ifdef _WIN32
 #define strncasecmp _strnicmp
@@ -110,26 +111,52 @@ int parseNum(char *s, int *ret);
 int getInstruction(char *symbol, fint *ret);
 int getRegister(char *symbol, fint *ret);
 int compileLine(char *line, fint *ret);
-int compileFile(FILE *fin);
+int compileFile(FILE *fin, bool comments);
 
 int main(int argc, char *argv[]) {
-	if (argc < 2) {
-		fprintf(stderr, "Usage: %s <input.asm>\n", argv[0]);
-		return 1;
+	int argi = 1;
+	bool comments = true;
+
+	for (; argi < argc; argi++) {
+		char* p = argv[argi];
+		if (p[0] != '-')
+			break;
+		if (strcmp(p, "-nocomments") == 0)
+			comments = false;
+		else if (strcmp(p, "-help") == 0)
+			goto help;
+		else {
+			fprintf(stderr, "Unknown parameter '%s'\n", p);
+			goto help;
+		}
 	}
 
-	FILE *fin = fopen(argv[1], "r");
+	if (argi >= argc) {
+		fprintf(stderr, "Input file not specified.\n");
+		goto help;
+	}
+	if (argi < argc - 1) {
+		fprintf(stderr, "Parameters after input file (%s) are prohibited\n", argv[argi]);
+		goto help;
+	}
+
+
+	FILE *fin = fopen(argv[argi], "r");
 	if (!fin) {
 		perror("fopen");
 		return 1;
 	}
 
-	int rc = compileFile(fin);
+	int rc = compileFile(fin, comments);
 	fclose(fin);
 	return rc != 1;
+
+help:
+	fprintf(stderr, "Usage: %s -help -nocomments <input.asm>\n", argv[0]);
+	return 1;
 }
 
-int compileFile(FILE *fin) {
+int compileFile(FILE *fin, bool comments) {
 	if (!fin)
 		return 0;
 
@@ -174,7 +201,10 @@ int compileFile(FILE *fin) {
 			} else if (status == 1) {
 				putchar('\t');
 				writeBin(stdout, l);
-				printf(", // %s", line);
+				if (comments)
+					printf(", // %s", line);
+				else
+					printf(",\n");
 				instructionnum++;
 			}
 		}
@@ -244,7 +274,6 @@ int compileLine(char *line, fint *ret) {
 			case OP_JMP:
 			case OP_PUSH:
 			case OP_POP:
-			case OP_SUB:
 				if (ind >= 1) {
 					snprintf(ERROR_TEXT, 255, "Too many parameters (1 expected)");
 					ok = 0;
@@ -324,7 +353,6 @@ int compileLine(char *line, fint *ret) {
 		case OP_JMP:
 		case OP_PUSH:
 		case OP_POP:
-		case OP_SUB:
 			if (ind != 1) {
 				snprintf(ERROR_TEXT, 255, "Too few parameters (1 expected)");
 				ok = 0;
