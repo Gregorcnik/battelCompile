@@ -106,10 +106,10 @@ enum {
 
 static char ERROR_TEXT[256];
 
-void writeBin(FILE *fout, fint n);
 int parseNum(char *s, int *ret);
-int getInstruction(char *symbol, fint *ret);
+void writeBin(FILE *fout, fint n);
 int getRegister(char *symbol, fint *ret);
+int getInstruction(char *symbol, fint *ret);
 int compileLine(char *line, fint *ret);
 int compileFile(FILE *fin, bool comments);
 
@@ -372,54 +372,6 @@ cleanup:
 	return ok;
 }
 
-int parseNum(char *s, int *ret) {
-	char *endptr;
-
-	errno = 0;
-
-	if (s[0] == 'b') {
-		// Binary
-		long val = 0;
-		for (int i = 1; s[i]; i++) {
-			if (s[i] == '0' || s[i] == '1') {
-				val = val * 2 + (s[i] - '0');
-			} else {
-				snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid binary number: %s", s);
-				return 0;
-			}
-		}
-		*ret = val;
-		return 1;
-	} else if (s[0] == 'x') {
-		// Hexadecimal
-		long val = strtol(s + 1, &endptr, 16);
-		if (*endptr != '\0' || errno != 0) {
-			snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid hexadecimal number: %s", s);
-			return 0;
-		}
-		*ret = val;
-		return 1;
-	} else {
-		// Decimal
-		long val = strtol(s, &endptr, 10);
-		if (*endptr != '\0' || errno != 0) {
-			snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid decimal number: %s", s);
-			return 0;
-		}
-		*ret = val;
-		return 1;
-	}
-}
-
-void writeBin(FILE *fout, fint n) {
-	fprintf(fout, "0b");
-	fint mask = (fint)1u << 15;
-	do {
-		fputc((n & mask) ? '1' : '0', fout);
-		mask >>= 1;
-	} while (mask);
-}
-
 int getInstruction(char *symbol, fint *ret) {
 	if (strcasecmp(symbol, "LDI") == 0) {
 		*ret = OP_LDI;
@@ -516,3 +468,52 @@ special_name:
 	snprintf(ERROR_TEXT, 255, "Unknown register: '%s'", symbol);
 	return 0;
 }
+
+void writeBin(FILE *fout, fint n) {
+	fprintf(fout, "0b");
+	fint mask = (fint)1u << 15;
+	do {
+		fputc((n & mask) ? '1' : '0', fout);
+		mask >>= 1;
+	} while (mask);
+}
+
+int parseNum(char *s, int *ret) {
+	char *endptr;
+
+	errno = 0;
+
+	if (s[0] == 'b') {
+		// Binary
+		long val = 0;
+		for (int i = 1; s[i]; i++) {
+			if (s[i] == '0' || s[i] == '1') {
+				val = val * 2 + (s[i] - '0');
+			} else {
+				snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid binary number: %s", s);
+				return 0;
+			}
+		}
+		*ret = val;
+		return 1;
+	} else if (s[0] == 'x') {
+		// Hexadecimal
+		long val = strtol(s + 1, &endptr, 16);
+		if (*endptr != '\0' || errno != 0) {
+			snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid hexadecimal number: %s", s);
+			return 0;
+		}
+		*ret = val;
+		return 1;
+	} else {
+		// Decimal
+		long val = strtol(s, &endptr, 10);
+		if (*endptr != '\0' || errno != 0) {
+			snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid decimal number: %s", s);
+			return 0;
+		}
+		*ret = val;
+		return 1;
+	}
+}
+
