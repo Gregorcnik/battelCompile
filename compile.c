@@ -13,6 +13,62 @@ The program outputs the transpiled c code to stdout and errors to stderr, so you
 #include <string.h>
 #include <strings.h>
 
+#ifdef _WIN32
+#define strncasecmp _strnicmp
+#define strcasecmp  _stricmp
+#endif
+
+#if defined(_WIN32) && !defined(HAVE_GETLINE)
+#include <BaseTsd.h>     // for SSIZE_T on MSVC
+typedef SSIZE_T ssize_t;
+
+ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
+    if (!lineptr || !n || !stream) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (*lineptr == NULL || *n == 0) {
+        *n = 128;
+        *lineptr = (char *)malloc(*n);
+        if (*lineptr == NULL) {
+            errno = ENOMEM;
+            return -1;
+        }
+    }
+
+    size_t pos = 0;
+    int c = 0;
+
+    while ((c = fgetc(stream)) != EOF) {
+        if (pos + 1 >= *n) { // need room for c and '\0'
+            size_t new_size = (*n > SIZE_MAX / 2) ? SIZE_MAX : (*n * 2);
+            if (new_size <= *n) { // overflow or stuck
+                errno = EOVERFLOW;
+                return -1;
+            }
+            char *new_ptr = (char *)realloc(*lineptr, new_size);
+            if (new_ptr == NULL) {
+                errno = ENOMEM;
+                return -1;
+            }
+            *lineptr = new_ptr;
+            *n = new_size;
+        }
+
+        (*lineptr)[pos++] = (char)c;
+        if (c == '\n') break;
+    }
+
+    if (pos == 0 && c == EOF) {
+        return -1;  // EOF with no data read
+    }
+
+    (*lineptr)[pos] = '\0';
+    return (ssize_t)pos;
+}
+#endif
+
 #define inside(low, mid, high) ((low) <= (mid) && (mid) <= (high))
 typedef uint16_t fint;
 
