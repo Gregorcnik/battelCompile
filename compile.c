@@ -6,67 +6,70 @@ The program outputs the transpiled c code to stdout and errors to stderr, so you
 ./compile example.asm > example.c
 */
 
+#include <assert.h>
+#include <ctype.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <stdbool.h>
 
 #ifdef _WIN32
 #define strncasecmp _strnicmp
-#define strcasecmp  _stricmp
+#define strcasecmp _stricmp
 #endif
 
 #if defined(_WIN32) && !defined(HAVE_GETLINE)
-#include <BaseTsd.h>     // for SSIZE_T on MSVC
+#include <BaseTsd.h> // for SSIZE_T on MSVC
 typedef SSIZE_T ssize_t;
 
 ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
-    if (!lineptr || !n || !stream) {
-        errno = EINVAL;
-        return -1;
-    }
+	if (!lineptr || !n || !stream) {
+		errno = EINVAL;
+		return -1;
+	}
 
-    if (*lineptr == NULL || *n == 0) {
-        *n = 128;
-        *lineptr = (char *)malloc(*n);
-        if (*lineptr == NULL) {
-            errno = ENOMEM;
-            return -1;
-        }
-    }
+	if (*lineptr == NULL || *n == 0) {
+		*n = 128;
+		*lineptr = (char *)malloc(*n);
+		if (*lineptr == NULL) {
+			errno = ENOMEM;
+			return -1;
+		}
+	}
 
-    size_t pos = 0;
-    int c = 0;
+	size_t pos = 0;
+	int c = 0;
 
-    while ((c = fgetc(stream)) != EOF) {
-        if (pos + 1 >= *n) { // need room for c and '\0'
-            size_t new_size = (*n > SIZE_MAX / 2) ? SIZE_MAX : (*n * 2);
-            if (new_size <= *n) { // overflow or stuck
-                errno = EOVERFLOW;
-                return -1;
-            }
-            char *new_ptr = (char *)realloc(*lineptr, new_size);
-            if (new_ptr == NULL) {
-                errno = ENOMEM;
-                return -1;
-            }
-            *lineptr = new_ptr;
-            *n = new_size;
-        }
+	while ((c = fgetc(stream)) != EOF) {
+		if (pos + 1 >= *n) { // need room for c and '\0'
+			size_t new_size = (*n > SIZE_MAX / 2) ? SIZE_MAX : (*n * 2);
+			if (new_size <= *n) { // overflow or stuck
+				errno = EOVERFLOW;
+				return -1;
+			}
+			char *new_ptr = (char *)realloc(*lineptr, new_size);
+			if (new_ptr == NULL) {
+				errno = ENOMEM;
+				return -1;
+			}
+			*lineptr = new_ptr;
+			*n = new_size;
+		}
 
-        (*lineptr)[pos++] = (char)c;
-        if (c == '\n') break;
-    }
+		(*lineptr)[pos++] = (char)c;
+		if (c == '\n')
+			break;
+	}
 
-    if (pos == 0 && c == EOF) {
-        return -1;  // EOF with no data read
-    }
+	if (pos == 0 && c == EOF) {
+		return -1; // EOF with no data read
+	}
 
-    (*lineptr)[pos] = '\0';
-    return (ssize_t)pos;
+	(*lineptr)[pos] = '\0';
+	return (ssize_t)pos;
 }
 #endif
 
@@ -107,18 +110,20 @@ enum {
 static char ERROR_TEXT[256];
 
 int parseNum(char *s, int *ret);
+int parseConst(char *s, size_t program_size, size_t instruction_num, int *ret);
 void writeBin(FILE *fout, fint n);
 int getRegister(char *symbol, fint *ret);
-int getInstruction(char *symbol, fint *ret);
-int compileLine(char *line, fint *ret);
+int getOperation(char *symbol, fint *ret);
+int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret);
 int compileFile(FILE *fin, bool comments);
+void countInstructions(FILE *fin, size_t *ret);
 
 int main(int argc, char *argv[]) {
 	int argi = 1;
 	bool comments = true;
 
 	for (; argi < argc; argi++) {
-		char* p = argv[argi];
+		char *p = argv[argi];
 		if (p[0] != '-')
 			break;
 		if (strcmp(p, "-nocomments") == 0)
@@ -140,7 +145,6 @@ int main(int argc, char *argv[]) {
 		goto help;
 	}
 
-
 	FILE *fin = fopen(argv[argi], "r");
 	if (!fin) {
 		perror("fopen");
@@ -156,6 +160,32 @@ help:
 	return 1;
 }
 
+void countInstructions(FILE *fin, size_t *ret) {
+	*ret = -1; // because of the first line
+
+	char *line = NULL;
+	size_t cap = 0;
+	ssize_t len;
+
+	while ((len = getline(&line, &cap, fin)) > 0) {
+		if (line[0] == '#') {
+			if (strncasecmp(line, "#starts", 7) == 0) {
+				int param;
+				sscanf(line, "%*s %d", &param);
+				*ret = param;
+			}
+		} else {
+			size_t i = 0;
+			for (; i < len && isspace((unsigned char)line[i]); i++)
+				;
+			if (i < len && line[i] != ';')
+				(*ret)++;
+		}
+	}
+
+	free(line);
+}
+
 int compileFile(FILE *fin, bool comments) {
 	if (!fin)
 		return 0;
@@ -163,7 +193,16 @@ int compileFile(FILE *fin, bool comments) {
 	char *line = NULL;
 	size_t cap = 0;
 	size_t linenum = 1;
-	size_t instructionnum = 0;
+	size_t instruction_num = 0;
+
+	size_t program_size;
+	countInstructions(fin, &program_size);
+	errno = 0;
+	rewind(fin);
+	if (errno != 0) {
+		perror("rewind");
+		return 0;
+	}
 
 	int ok = 1;
 
@@ -180,12 +219,12 @@ int compileFile(FILE *fin, bool comments) {
 			if (strncasecmp(line, "#starts", 7) == 0) {
 				int param;
 				sscanf(line, "%*s %d", &param);
-				if (param < instructionnum) {
-					fprintf(stderr, "Error on line %zu: #starts directive wants to go back (current instruction: %zu, wanted instruction: %d)\n", linenum, instructionnum, param);
+				if (param < instruction_num) {
+					fprintf(stderr, "Error on line %zu: #starts directive wants to go back (current instruction: %zu, wanted instruction: %d)\n", linenum, instruction_num, param);
 					ok = 0;
 					goto cleanup;
 				}
-				for (; instructionnum < param; instructionnum++) {
+				for (; instruction_num < param; instruction_num++) {
 					putchar('\t');
 					writeBin(stdout, 0);
 					printf(",\n");
@@ -193,7 +232,7 @@ int compileFile(FILE *fin, bool comments) {
 			}
 		} else {
 			fint l;
-			int status = compileLine(line, &l);
+			int status = compileLine(line, program_size, instruction_num, &l);
 			if (!status) {
 				fprintf(stderr, "Error on line %zu: %s\n", linenum, ERROR_TEXT);
 				ok = 0;
@@ -205,17 +244,19 @@ int compileFile(FILE *fin, bool comments) {
 					printf(", // %s", line);
 				else
 					printf(",\n");
-				instructionnum++;
+				instruction_num++;
 			}
 		}
 
 		linenum++;
 	}
 
+	assert(program_size == instruction_num); // if false, instruction counting function probably doesn't work
+
 	printf("\n};\n"
 		   "static uint16_t %s_size = %zu;\n"
 		   "static uint16_t %s_offset = %d;\n",
-		   name, instructionnum, name, offset);
+		   name, program_size, name, offset);
 
 cleanup:
 	if (line)
@@ -224,7 +265,7 @@ cleanup:
 }
 
 // Returns 2 on empty lines
-int compileLine(char *line, fint *ret) {
+int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret) {
 	*ret = 0;
 
 	char *lline = strdup(line);
@@ -241,7 +282,7 @@ int compileLine(char *line, fint *ret) {
 	}
 
 	fint opcode;
-	if (!getInstruction(token, &opcode)) {
+	if (!getOperation(token, &opcode)) {
 		free(lline);
 		return 0;
 	}
@@ -293,12 +334,12 @@ int compileLine(char *line, fint *ret) {
 		switch (opcode) {
 			case OP_LDI: {
 				int val;
-				if (!parseNum(token, &val)) {
+				if (!parseConst(token, program_size, instruction_num, &val) && !parseNum(token, &val)) {
 					ok = 0;
 					goto cleanup;
 				}
 				if (val < 0 || val >= (1 << 16)) {
-					snprintf(ERROR_TEXT, 255, "Number not in range [0, 2^16): '%s'", token);
+					snprintf(ERROR_TEXT, 255, "Number not in range [0, 2^16): '%s' -> %d", token, val);
 					ok = 0;
 					goto cleanup;
 				}
@@ -313,12 +354,12 @@ int compileLine(char *line, fint *ret) {
 			case OP_SHRI:
 				if (ind == 1) {
 					int val;
-					if (!parseNum(token, &val)) {
+					if (!parseConst(token, program_size, instruction_num, &val) && !parseNum(token, &val)) {
 						ok = 0;
 						goto cleanup;
 					}
 					if (val < 0 || val >= (1 << 6)) {
-						snprintf(ERROR_TEXT, 255, "Number not in range [0, 2^6): '%s'", token);
+						snprintf(ERROR_TEXT, 255, "Number not in range [0, 2^6): '%s' -> %d", token, val);
 						ok = 0;
 						goto cleanup;
 					}
@@ -372,7 +413,7 @@ cleanup:
 	return ok;
 }
 
-int getInstruction(char *symbol, fint *ret) {
+int getOperation(char *symbol, fint *ret) {
 	if (strcasecmp(symbol, "LDI") == 0) {
 		*ret = OP_LDI;
 	} else if (strcasecmp(symbol, "MV") == 0) {
@@ -478,6 +519,26 @@ void writeBin(FILE *fout, fint n) {
 	} while (mask);
 }
 
+int parseConst(char *s, size_t program_size, size_t instruction_num, int *ret) {
+	char const_name[255];
+	int change = 0;
+	if (sscanf(s, "#%254[^:]:%d", const_name, &change) == 0) {
+		snprintf(ERROR_TEXT, 255, "Not a valid compile-time constant format (expected something like #%%s or #%%s:%%d): '%s'", s);
+		return 0;
+	}
+	if (strcasecmp(const_name, "size") == 0) {
+		*ret = program_size + change;
+	} else if (strcasecmp(const_name, "before") == 0) {
+		*ret = instruction_num + change;
+	} else if (strcasecmp(const_name, "after") == 0) {
+		*ret = program_size - instruction_num - 1 + change;
+	} else {
+		snprintf(ERROR_TEXT, 255, "Unknown compile-time constant '%s'", const_name);
+		return 0;
+	}
+	return 1;
+}
+
 int parseNum(char *s, int *ret) {
 	char *endptr;
 
@@ -516,4 +577,3 @@ int parseNum(char *s, int *ret) {
 		return 1;
 	}
 }
-
