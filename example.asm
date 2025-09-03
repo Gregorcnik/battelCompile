@@ -1,5 +1,5 @@
 mars 377
-;first line MUST be program name and offset
+;first line MUST be program name and offset seperated by space
 
 ;calc main start to r1
 ;multiple whitespaces are OK and case doesn't matter
@@ -31,7 +31,6 @@ shl r3, r29
 ;------------------------------------
 #starts 20
 ;^ means fill with zeroes, so the next instruction is 20. Useful for developing before optimizing. 
-;Will maybe change to a label goto system, that won't require wasting space
 
 st r3, r4 ;fire
 add r4, r2 ;increment
