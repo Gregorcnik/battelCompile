@@ -226,7 +226,7 @@ int compileFile(FILE *fin, bool comments) {
 				}
 				for (; instruction_num < param; instruction_num++) {
 					putchar('\t');
-					writeBin(stdout, 0);
+					writeBin(stdout, 0b1111110000000000);
 					printf(",\n");
 				}
 			}
