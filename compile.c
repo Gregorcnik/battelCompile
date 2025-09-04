@@ -95,6 +95,7 @@ enum {
 	OP_JMP,
 	OP_JZ,
 	OP_JN,
+	OP_JNZ,
 	OP_JP,
 	OP_LD,
 	OP_ST,
