@@ -94,8 +94,8 @@ enum {
 	OP_SHR,
 	OP_JMP,
 	OP_JZ,
-	OP_JN,
 	OP_JNZ,
+	OP_JN,
 	OP_JP,
 	OP_LD,
 	OP_ST,
@@ -439,6 +439,8 @@ int getOperation(char *symbol, fint *ret) {
 		*ret = OP_JMP;
 	} else if (strcasecmp(symbol, "JZ") == 0) {
 		*ret = OP_JZ;
+	} else if (strcasecmp(symbol, "JNZ") == 0) {
+		*ret = OP_JNZ;
 	} else if (strcasecmp(symbol, "JN") == 0) {
 		*ret = OP_JN;
 	} else if (strcasecmp(symbol, "JP") == 0) {
