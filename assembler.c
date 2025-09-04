@@ -1,9 +1,10 @@
 /*
-Transpiles assembly like code to binary. And yeah, I know compile isn't the right word, but it is easier to type.
+Transpiles assembly like code to binary for BattelASM.
 ===================================================================
-Compile normally (cc compile.c for instance). 
+Compile normally (cc -o assembler assembler.c for instance). 
 The program outputs the transpiled c code to stdout and errors to stderr, so you can do 
-./compile example.asm > example.c
+./assembler example.asm > example.c
+For other options type ./assembler -help
 */
 
 #include <assert.h>
