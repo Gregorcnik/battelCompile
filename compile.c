@@ -16,6 +16,9 @@ The program outputs the transpiled c code to stdout and errors to stderr, so you
 #include <string.h>
 #include <strings.h>
 
+#define inside(low, mid, high) ((low) <= (mid) && (mid) <= (high))
+typedef uint16_t fint;
+
 #ifdef _WIN32
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
@@ -72,9 +75,6 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
 	return (ssize_t)pos;
 }
 #endif
-
-#define inside(low, mid, high) ((low) <= (mid) && (mid) <= (high))
-typedef uint16_t fint;
 
 enum {
 	SP = 30,
@@ -521,17 +521,16 @@ void writeBin(FILE *fout, fint n) {
 
 int parseConst(char *s, size_t program_size, size_t instruction_num, int *ret) {
 	char const_name[255];
-	int change = 0;
-	if (sscanf(s, "#%254[^:]:%d", const_name, &change) == 0) {
-		snprintf(ERROR_TEXT, 255, "Not a valid compile-time constant format (expected something like #%%s or #%%s:%%d): '%s'", s);
+	int change = 0, multiplier = 1;
+	if (s[0] != '#')
 		return 0;
-	}
+	sscanf(s, "#%254[^:]:%d:%d", const_name, &change, &multiplier);
 	if (strcasecmp(const_name, "size") == 0) {
-		*ret = program_size + change;
+		*ret = program_size * multiplier + change;
 	} else if (strcasecmp(const_name, "before") == 0) {
-		*ret = instruction_num + change;
+		*ret = instruction_num * multiplier + change;
 	} else if (strcasecmp(const_name, "after") == 0) {
-		*ret = program_size - instruction_num - 1 + change;
+		*ret = (program_size - instruction_num - 1) * multiplier + change;
 	} else {
 		snprintf(ERROR_TEXT, 255, "Unknown compile-time constant '%s'", const_name);
 		return 0;
@@ -550,7 +549,7 @@ int parseNum(char *s, int *ret) {
 		for (int i = 1; s[i]; i++) {
 			if (s[i] == '0' || s[i] == '1') {
 				val = val * 2 + (s[i] - '0');
-			} else {
+			} else if (s[i] != '.') {
 				snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid binary number: %s", s);
 				return 0;
 			}
