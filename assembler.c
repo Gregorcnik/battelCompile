@@ -110,7 +110,7 @@ enum {
 };
 
 typedef struct {
-	bool comments, var_table, decimal_instr;
+	bool comments, var_table, decimal_instr, vars;
 } Options;
 
 static char ERROR_TEXT[256];
@@ -118,15 +118,15 @@ static char ERROR_TEXT[256];
 int parseNum(char *s, int *ret);
 int parseConst(char *s, size_t program_size, size_t instruction_num, int *ret);
 void writeBin(FILE *fout, fint n);
-int getRegister(char *symbol, fint *ret);
+int getRegister(char *symbol, fint *ret, bool use_vars);
 int getOperation(char *symbol, fint *ret);
-int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret);
+int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret, bool use_vars);
 int compileFile(FILE *fin, Options *opts);
 void countInstructions(FILE *fin, size_t *ret);
 
 int main(int argc, char *argv[]) {
 	int argi = 1;
-	Options opts = {.comments = true, .var_table = false, .decimal_instr = false};
+	Options opts = {.comments = true, .var_table = false, .decimal_instr = false, .vars = true };
 
 	for (; argi < argc; argi++) {
 		char *p = argv[argi];
@@ -136,6 +136,8 @@ int main(int argc, char *argv[]) {
 			opts.comments = false;
 		else if (strcmp(p, "-vartable") == 0)
 			opts.var_table = true;
+		else if (strcmp(p, "-novars") == 0)
+			opts.vars = false;
 		else if (strcmp(p, "-decimal") == 0)
 			opts.decimal_instr = true;
 		else if (strcmp(p, "-obfuscate") == 0) {
@@ -147,6 +149,11 @@ int main(int argc, char *argv[]) {
 			fprintf(stderr, "Unknown parameter '%s'\n", p);
 			goto usage;
 		}
+	}
+
+	if (!opts.vars && opts.var_table) {
+		fprintf(stderr, "-novars and -vartable aren't compatible.\n");
+		goto usage;
 	}
 
 	if (argi >= argc) {
@@ -169,7 +176,7 @@ int main(int argc, char *argv[]) {
 	return rc != 1;
 
 usage:
-	fprintf(stderr, "Usage: %s -help -nocomments -vartable -decimal -obfuscate <input.asm>\n", argv[0]);
+	fprintf(stderr, "Usage: %s -help -nocomments [-vartable -novars] -decimal -obfuscate <input.asm>\n", argv[0]);
 	return 1;
 }
 
@@ -273,7 +280,7 @@ int compileFile(FILE *fin, Options *opts) {
 			}
 		} else {
 			fint l;
-			int status = compileLine(line, program_size, instruction_num, &l);
+			int status = compileLine(line, program_size, instruction_num, &l, opts->vars);
 			if (!status) {
 				fprintf(stderr, "Error on line %zu: %s\n", linenum, ERROR_TEXT);
 				ok = 0;
@@ -316,7 +323,7 @@ cleanup:
 }
 
 // Returns 2 on empty lines
-int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret) {
+int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret, bool use_vars) {
 	*ret = 0;
 
 	char *lline = strdup(line);
@@ -422,7 +429,7 @@ int compileLine(char *line, size_t program_size, size_t instruction_num, fint *r
 
 			default: {
 				fint reg;
-				if (!getRegister(token, &reg)) {
+				if (!getRegister(token, &reg, use_vars)) {
 					ok = 0;
 					goto cleanup;
 				}
@@ -521,7 +528,7 @@ int getOperation(char *symbol, fint *ret) {
 	return 1;
 }
 
-int getRegister(char *symbol, fint *ret) {
+int getRegister(char *symbol, fint *ret, bool use_vars) {
 	int n = strlen(symbol);
 	if (!n)
 		return 0;
@@ -551,6 +558,10 @@ int getRegister(char *symbol, fint *ret) {
 	}
 
 special_name:;
+	if (use_vars && (isdigit(symbol[0]) || symbol[0] == '#')) {
+		snprintf(ERROR_TEXT, 255, "Invalid variable name (starts with a digit or #): '%s'", symbol);
+		return 0;
+	}
 	int empty = -1;
 	for (int i = 1; i < 32; i++) {
 		if (strcasecmp(variables[i], symbol) == 0) {
@@ -561,11 +572,16 @@ special_name:;
 			empty = i;
 	}
 	if (empty == -1) {
-		snprintf(ERROR_TEXT, 255, "Too many variables: '%s'", symbol);
+		snprintf(ERROR_TEXT, 255, "Too many variables (maybe #free some?): '%s'", symbol);
 		return 0;
 	}
-	strncpy(variables[empty], symbol, 254);
-	*ret = empty;
+
+	if (use_vars) {
+		strncpy(variables[empty], symbol, 254);
+		*ret = empty;
+	} else {
+		snprintf(ERROR_TEXT, 255, "Invalid register (you have variables turned off): '%s'", symbol);
+	}
 
 	return 1;
 }
