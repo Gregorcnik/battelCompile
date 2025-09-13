@@ -4,7 +4,7 @@ A transpiler for [qyx22122/BattelASM](https://github.com/qyx22122/BattelASM). It
 
 ## Syntax
 
-First line of the file must be header line. The header line consists of program name and program offset separated by space. Program name must be valid c variable name and offset must be on [0, 2^10 - program_size).
+First line of the file must be header line. The header line consists of program name and program offset separated by space. Program name must be a valid c variable name and the offset must be on [0, 2^10 - program_size).
 
 For opcodes see [BattelASM/arch.ods](https://github.com/qyx22122/BattelASM/blob/main/arch.ods).
 
@@ -32,7 +32,9 @@ Although a bit controversial, the assembler supports variables. Variables are op
 
 Variables can contain everything but whitespaces, semicolons and commas and mustn't start with # or a digit. By convention, variables should be written in brackets, e.g. ``[start]``. They are case‑insensitive. It is possible to use both registers and variables in the same program, but it can quickly result in a mess, as variables can overwrite registers and vice-versa and is strongly advised against.
 
-You can turn variables off with ``-novars`` flag.
+You can turn variables off with the ``-novars`` flag.
+
+Example:
 
 ```asm
 variables 0
@@ -46,7 +48,7 @@ addi [bla], 1 ;so that other variables can use the freed registers
 ;because the values aren't freed the [bla] now holds `pc / 2 + 1`
 ```
 
-is equivalent to:
+Which is equivalent to:
 
 ```asm
 variables 0
@@ -59,10 +61,10 @@ addi r1, 1
 
 ### Directives & Constants
 
-There are also *directives* and *compile time constants*. All of them start with #. Directives are in there own line while constants act like numbers.
+There are also *directives* and *compile time constants*. All of them start with #. Directives are in their own lines while constants act like numbers.
 
 - ``#starts param`` (param denotes the parameter): *Directive* to pad with flag instructions so before the next instruction there are `param` instructions. This can be useful when developing the program, so that relative jumps need not be corrected when adding code.
-- ``#free param``: *Directive* to mark the register where the variable by the name of ``param`` is saved free. In other words it frees the register binding, but not its runtime value; later variables may reuse that register. The ``#size`` and co. do include it to their count.
+- ``#free param``: *Directive* to mark the register, where the variable by the name of ``param`` is saved, free. In other words it frees the register binding, but not its runtime value; later variables may reuse that register. The ``#size`` and co. do include it to their count.
 
 - ``#size``: *Compile time constant* that expands to the number of instructions in the program.
 - ``#before``: *Compile time constant* that expands to the number of instructions before the current instructions.
@@ -89,13 +91,13 @@ Compile the assembler normally. For instance with:
 cc -O2 -Wall assembler.c -o assembler
 ```
 
-To assemble a file run the assembler on the file and pipe the output to the output file. This works as the error are written to stderr. Note that the file will be overwritten even if the assembler fails.
+To assemble a file run the assembler on the file and pipe the output to the output file. This works as the errors are written to stderr. Note that the file will be overwritten even if the assembler fails.
 
 ```bash
 ./assembler example.asm > example.c
 ```
 
-To avoid accidental overwrite on errors you can do use this instead:
+To avoid accidental overwrite on errors you can use this instead:
 
 ```bash
 ./assembler example.asm > tmp.c && mv tmp.c example.c
