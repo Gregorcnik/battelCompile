@@ -233,6 +233,7 @@ int compileFile(FILE *fin, Options *opts) {
 	if (fscanf(fin, "%s %d", name, &offset) == 2) {
 		printf("static uint16_t %s_mem[] = {\n", name);
 	} else {
+		fprintf(stderr, "Header line is missing (first line in the file must be 'name offset'. eg. example 10)\n")
 		return 1;
 	}
 
