@@ -1,10 +1,16 @@
 /*
-Transpiles assembly like code to binary for BattelASM.
+Transpiles assembly like code to binary for BattelASM. Made by Gregorcnik.
 ===================================================================
 Compile normally (cc -o assembler assembler.c for instance). 
 The program outputs the transpiled c code to stdout and errors to stderr, so you can do 
 ./assembler example.asm > example.c
 For other options type ./assembler -help
+
+This project is licensed under the following terms:
+You are free to use, modify, and redistribute this software, provided that:
+ - Credit is given to Gregorcnik as the original author.
+ - Any redistributed or derivative work is released under the same license.
+No warranty is provided. Use at your own risk.
 */
 
 #include <assert.h>
