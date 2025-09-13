@@ -371,7 +371,7 @@ int compileLine(char *line, size_t program_size, size_t instruction_num, fint *r
 					ok = 0;
 					goto cleanup;
 				}
-				/* fall through */
+				break;
 
 			default:
 				if (ind >= 2) {
@@ -385,7 +385,7 @@ int compileLine(char *line, size_t program_size, size_t instruction_num, fint *r
 		switch (opcode) {
 			case OP_LDI: {
 				int val;
-				if (!parseConst(token, program_size, instruction_num, &val) && !parseNum(token, &val)) {
+				if (!parseNum(token, &val) && !parseConst(token, program_size, instruction_num, &val)) {
 					ok = 0;
 					goto cleanup;
 				}
@@ -405,7 +405,7 @@ int compileLine(char *line, size_t program_size, size_t instruction_num, fint *r
 			case OP_SHRI:
 				if (ind == 1) {
 					int val;
-					if (!parseConst(token, program_size, instruction_num, &val) && !parseNum(token, &val)) {
+					if (!parseNum(token, &val) && !parseConst(token, program_size, instruction_num, &val)) {
 						ok = 0;
 						goto cleanup;
 					}
