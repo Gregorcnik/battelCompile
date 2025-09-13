@@ -233,7 +233,7 @@ int compileFile(FILE *fin, Options *opts) {
 	if (fscanf(fin, "%s %d", name, &offset) == 2) {
 		printf("static uint16_t %s_mem[] = {\n", name);
 	} else {
-		fprintf(stderr, "Header line is missing (first line in the file must be 'name offset'. eg. example 10)\n")
+		fprintf(stderr, "Header line is missing (first line in the file must be 'name offset'. eg. example 10)\n");
 		return 1;
 	}
 
@@ -553,7 +553,7 @@ int getRegister(char *symbol, fint *ret) {
 special_name:;
 	int empty = -1;
 	for (int i = 1; i < 32; i++) {
-		if (strcmp(variables[i], symbol) == 0) {
+		if (strcasecmp(variables[i], symbol) == 0) {
 			*ret = i;
 			return 1;
 		}
