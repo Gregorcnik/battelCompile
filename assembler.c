@@ -109,6 +109,10 @@ enum {
 	OP_FLAG = 0x3f
 };
 
+typedef struct {
+	bool comments, var_table, decimal_instr;
+} Options;
+
 static char ERROR_TEXT[256];
 
 int parseNum(char *s, int *ret);
@@ -117,34 +121,41 @@ void writeBin(FILE *fout, fint n);
 int getRegister(char *symbol, fint *ret);
 int getOperation(char *symbol, fint *ret);
 int compileLine(char *line, size_t program_size, size_t instruction_num, fint *ret);
-int compileFile(FILE *fin, bool comments);
+int compileFile(FILE *fin, Options *opts);
 void countInstructions(FILE *fin, size_t *ret);
 
 int main(int argc, char *argv[]) {
 	int argi = 1;
-	bool comments = true;
+	Options opts = {.comments = true, .var_table = false, .decimal_instr = false};
 
 	for (; argi < argc; argi++) {
 		char *p = argv[argi];
 		if (p[0] != '-')
 			break;
 		if (strcmp(p, "-nocomments") == 0)
-			comments = false;
-		else if (strcmp(p, "-help") == 0)
-			goto help;
+			opts.comments = false;
+		else if (strcmp(p, "-vartable") == 0)
+			opts.var_table = true;
+		else if (strcmp(p, "-decimal") == 0)
+			opts.decimal_instr = true;
+		else if (strcmp(p, "-obfuscate") == 0) {
+			opts.comments = false;
+			opts.decimal_instr = true;
+		} else if (strcmp(p, "-help") == 0)
+			goto usage;
 		else {
 			fprintf(stderr, "Unknown parameter '%s'\n", p);
-			goto help;
+			goto usage;
 		}
 	}
 
 	if (argi >= argc) {
 		fprintf(stderr, "Input file not specified.\n");
-		goto help;
+		goto usage;
 	}
 	if (argi < argc - 1) {
 		fprintf(stderr, "Parameters after input file (%s) are prohibited\n", argv[argi]);
-		goto help;
+		goto usage;
 	}
 
 	FILE *fin = fopen(argv[argi], "r");
@@ -153,13 +164,21 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	int rc = compileFile(fin, comments);
+	int rc = compileFile(fin, &opts);
 	fclose(fin);
 	return rc != 1;
 
-help:
-	fprintf(stderr, "Usage: %s -help -nocomments <input.asm>\n", argv[0]);
+usage:
+	fprintf(stderr, "Usage: %s -help -nocomments -vartable -decimal -obfuscate <input.asm>\n", argv[0]);
 	return 1;
+}
+
+char variables[32][255];
+
+void init_variables() {
+	strcpy(variables[0], "r0");
+	strcpy(variables[30], "sp");
+	strcpy(variables[31], "pc");
 }
 
 void countInstructions(FILE *fin, size_t *ret) {
@@ -188,9 +207,11 @@ void countInstructions(FILE *fin, size_t *ret) {
 	free(line);
 }
 
-int compileFile(FILE *fin, bool comments) {
+int compileFile(FILE *fin, Options *opts) {
 	if (!fin)
 		return 0;
+
+	init_variables();
 
 	char *line = NULL;
 	size_t cap = 0;
@@ -228,8 +249,26 @@ int compileFile(FILE *fin, bool comments) {
 				}
 				for (; instruction_num < param; instruction_num++) {
 					putchar('\t');
-					writeBin(stdout, 0b1111110000000000);
+					if (opts->decimal_instr)
+						printf("%d", 0b1111110000000000);
+					else
+						writeBin(stdout, 0b1111110000000000);
 					printf(",\n");
+				}
+			} else if (strncasecmp(line, "#free", 5) == 0) {
+				char param[255];
+				sscanf(line, "%*s %254s", param);
+				int i;
+				for (i = 1; i < 30; i++) {
+					if (strcmp(variables[i], param) == 0) {
+						variables[i][0] = '\0';
+						break;
+					}
+				}
+				if (i == 30) {
+					fprintf(stderr, "Error on line %zu: trying to free the variable %s which isn't in use\n", linenum, param);
+					ok = 0;
+					goto cleanup;
 				}
 			}
 		} else {
@@ -241,8 +280,11 @@ int compileFile(FILE *fin, bool comments) {
 				goto cleanup;
 			} else if (status == 1) {
 				putchar('\t');
-				writeBin(stdout, l);
-				if (comments)
+				if (opts->decimal_instr)
+					printf("%d", l);
+				else
+					writeBin(stdout, l);
+				if (opts->comments)
 					printf(", // %s", line);
 				else
 					printf(",\n");
@@ -259,6 +301,13 @@ int compileFile(FILE *fin, bool comments) {
 		   "static uint16_t %s_size = %zu;\n"
 		   "static uint16_t %s_offset = %d;\n",
 		   name, program_size, name, offset);
+
+	if (opts->var_table) {
+		putchar('\n');
+		for (int i = 1; i < 30; i++)
+			if (variables[i][0] != '\0')
+				printf("// %s: r%d\n", variables[i], i);
+	}
 
 cleanup:
 	if (line)
@@ -501,17 +550,20 @@ int getRegister(char *symbol, fint *ret) {
 		}
 	}
 
-special_name:
-	if (strcasecmp(symbol, "sp") == 0) {
-		*ret = SP;
-		return 1;
-	} else if (strcasecmp(symbol, "pc") == 0) {
-		*ret = PC;
-		return 1;
+special_name:;
+	int empty = -1;
+	for (int i = 0; i < 32; i++) {
+		if (strcmp(variables[i], symbol) == 0)
+			return i;
+		if (variables[i][0] == 0 && empty == -1)
+			empty = i;
 	}
-
-	snprintf(ERROR_TEXT, 255, "Unknown register: '%s'", symbol);
-	return 0;
+	if (empty == -1) {
+		snprintf(ERROR_TEXT, 255, "Too many variables: '%s'", symbol);
+		return 0;
+	}
+	strncpy(variables[empty], symbol, 254);
+	return empty;
 }
 
 void writeBin(FILE *fout, fint n) {
