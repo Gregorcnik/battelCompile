@@ -176,7 +176,6 @@ usage:
 char variables[32][255];
 
 void init_variables() {
-	strcpy(variables[0], "r0");
 	strcpy(variables[30], "sp");
 	strcpy(variables[31], "pc");
 }
@@ -552,9 +551,11 @@ int getRegister(char *symbol, fint *ret) {
 
 special_name:;
 	int empty = -1;
-	for (int i = 0; i < 32; i++) {
-		if (strcmp(variables[i], symbol) == 0)
-			return i;
+	for (int i = 1; i < 32; i++) {
+		if (strcmp(variables[i], symbol) == 0) {
+			*ret = i;
+			return 1;
+		}
 		if (variables[i][0] == 0 && empty == -1)
 			empty = i;
 	}
@@ -563,7 +564,9 @@ special_name:;
 		return 0;
 	}
 	strncpy(variables[empty], symbol, 254);
-	return empty;
+	*ret = empty;
+
+	return 1;
 }
 
 void writeBin(FILE *fout, fint n) {
