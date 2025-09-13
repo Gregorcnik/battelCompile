@@ -603,10 +603,10 @@ int parseNum(char *s, int *ret) {
 
 	errno = 0;
 
-	if (s[0] == 'b') {
+	if (s[0] == '0' && s[1] == 'b') {
 		// Binary
 		long val = 0;
-		for (int i = 1; s[i]; i++) {
+		for (int i = 2; s[i]; i++) {
 			if (s[i] == '0' || s[i] == '1') {
 				val = val * 2 + (s[i] - '0');
 			} else if (s[i] != '.') {
@@ -616,9 +616,9 @@ int parseNum(char *s, int *ret) {
 		}
 		*ret = val;
 		return 1;
-	} else if (s[0] == 'x') {
+	} else if (s[0] == '0' && s[1] == 'x') {
 		// Hexadecimal
-		long val = strtol(s + 1, &endptr, 16);
+		long val = strtol(s + 2, &endptr, 16);
 		if (*endptr != '\0' || errno != 0) {
 			snprintf(ERROR_TEXT, sizeof(ERROR_TEXT), "Invalid hexadecimal number: %s", s);
 			return 0;
