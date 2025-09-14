@@ -61,10 +61,11 @@ addi r1, 1
 
 ### Directives & Constants
 
-There are also *directives* and *compile-time constants*. All of them start with #. Directives are in their own lines, while constants act like numbers.
+There are also *directives* and *compile-time constants*. All of them start with #. Directives are in their own lines and must start at the beginning of the line, while constants act like numbers.
 
 - ``#starts param`` (param denotes the parameter): *Directive* to pad with flag instructions so before the next instruction, there are `param` instructions. This can be useful when developing the program, so that relative jumps need not be corrected when adding code.
-- ``#free param``: *Directive* to mark the register, where the variable by the name of ``param`` is saved, free. In other words, it frees the register binding, but not its runtime value; later variables may reuse that register. The ``#size`` and co. do include it in their count.
+- ``#free param``: *Directive* to mark the register, where the variable by the name of ``param`` is saved, free. In other words, it frees the register binding, but not its runtime value; later variables may reuse that register.
+- ``#repeat param1 param2``: *Directive* to repeat next ``param1`` instructions ``param2`` times. Nested repeats aren't supported.
 
 - ``#size``: *Compile time constant* that expands to the number of instructions in the program.
 - ``#before``: *Compile time constant* that expands to the number of instructions before the current instructions.
@@ -147,4 +148,3 @@ You are free to use, modify, and redistribute this software, provided that:
 1. Credit is given to Gregorcnik as the original author.
 2. Any redistributed or derivative work is released under the same license.
 3. No warranty is provided. Use at your own risk
-

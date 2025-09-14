@@ -132,7 +132,7 @@ void countInstructions(FILE *fin, size_t *ret);
 
 int main(int argc, char *argv[]) {
 	int argi = 1;
-	Options opts = {.comments = true, .var_table = false, .decimal_instr = false, .vars = true };
+	Options opts = {.comments = true, .var_table = false, .decimal_instr = false, .vars = true};
 
 	for (; argi < argc; argi++) {
 		char *p = argv[argi];
@@ -206,6 +206,10 @@ void countInstructions(FILE *fin, size_t *ret) {
 				int param;
 				sscanf(line, "%*s %d", &param);
 				*ret = param;
+			} else if (strncasecmp(line, "#repeat", 7) == 0) {
+				int param1, param2;
+				sscanf(line, "%*s %d %d", &param1, &param2);
+				*ret += param1 * (param2 - 1);
 			}
 		} else {
 			size_t i = 0;
@@ -229,6 +233,10 @@ int compileFile(FILE *fin, Options *opts) {
 	size_t cap = 0;
 	size_t linenum = 1;
 	size_t instruction_num = 0;
+	ssize_t line_length;
+
+	fint repeat_arr[1024];
+	int repeat_what = 0, repeat_times = 0, repeat_already = 0;
 
 	size_t program_size;
 	countInstructions(fin, &program_size);
@@ -250,7 +258,24 @@ int compileFile(FILE *fin, Options *opts) {
 		return 1;
 	}
 
-	while (getline(&line, &cap, fin) != -1) {
+	while ((line_length = getline(&line, &cap, fin)) != -1) {
+		{
+			if (line[line_length - 1] != '\n') {
+				if (cap <= (size_t)line_length + 1) {
+					size_t cap = (size_t)line_length + 2;
+					char *tmp = realloc(line, cap);
+					if (!tmp) {
+						perror("realloc");
+						ok = false;
+						goto cleanup;
+					}
+					line = tmp;
+				}
+				line[line_length] = '\n';
+				line[line_length + 1] = '\0';
+			}
+		}
+
 		if (line[0] == '#') {
 			if (strncasecmp(line, "#starts", 7) == 0) {
 				int param;
@@ -283,8 +308,25 @@ int compileFile(FILE *fin, Options *opts) {
 					ok = 0;
 					goto cleanup;
 				}
+			} else if (strncasecmp(line, "#repeat", 7) == 0) {
+				int param1, param2;
+				if (sscanf(line, "%*s %d %d", &param1, &param2) != 2) {
+					fprintf(stderr, "Error on line %zu: #repeat needs 2 parameters - what and how many times\n", linenum);
+					ok = 0;
+					goto cleanup;
+				}
+				if (repeat_what != 0) {
+					fprintf(stderr, "Error on line %zu: nesting #repeat-s isn't supported\n", linenum);
+					ok = 0;
+					goto cleanup;
+				}
+				repeat_what = param1;
+				repeat_times = param2 - 1;
+				repeat_already = 0;
 			}
+
 		} else {
+
 			fint l;
 			int status = compileLine(line, program_size, instruction_num, &l, opts->vars);
 			if (!status) {
@@ -301,16 +343,40 @@ int compileFile(FILE *fin, Options *opts) {
 					printf(", // %s", line);
 				else
 					printf(",\n");
+
 				instruction_num++;
+
+				if (repeat_what != repeat_already) {
+					repeat_arr[repeat_already] = l;
+					repeat_already++;
+				}
+				if (repeat_what == repeat_already) {
+					while (repeat_times--) {
+						for (int i = 0; i < repeat_what; i++) {
+							putchar('\t');
+							if (opts->decimal_instr)
+								printf("%d", repeat_arr[i]);
+							else
+								writeBin(stdout, repeat_arr[i]);
+							if (opts->comments)
+								printf(", // repeat %d\n", repeat_times + 1);
+							else
+								printf(",\n");
+							instruction_num++;
+						}
+					}
+					repeat_what = 0;
+					repeat_already = 0;
+				}
+
+				linenum++;
 			}
 		}
-
-		linenum++;
 	}
 
 	assert(program_size == instruction_num); // if false, instruction counting function probably doesn't work
 
-	printf("\n};\n"
+	printf("};\n"
 		   "static uint16_t %s_size = %zu;\n"
 		   "static uint16_t %s_offset = %d;\n",
 		   name, program_size, name, offset);
