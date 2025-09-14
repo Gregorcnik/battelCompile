@@ -4,13 +4,13 @@ A transpiler for [qyx22122/BattelASM](https://github.com/qyx22122/BattelASM). It
 
 ## Syntax
 
-First line of the file must be header line. The header line consists of program name and program offset separated by space. Program name must be a valid c variable name and the offset must be on [0, 2^10 - program_size).
+The first line of the file must be a header line. The header line consists of the program name and program offset separated by a space. The program name must be a valid c variable name, and the offset must be within the range [0, 2^10 - program_size).
 
 For opcodes see [BattelASM/arch.ods](https://github.com/qyx22122/BattelASM/blob/main/arch.ods).
 
 ### Comments
 
-You can create comments with semicolon (;). They can occupy a whole line or start somewhere in between and they last to the end of line. There are no block comments.
+You can create comments with a semicolon (;). They can occupy a whole line or start somewhere in between, and they last to the end of the line. There are no block comments.
 
 ```asm
 comments 0
@@ -20,17 +20,17 @@ ldi 1 ;this is also a comment
 
 ### Code style and whitespaces
 
-The assembler is quite permissive code style wise. Commas are considered whitespaces and whitespaces are considered separators. Multiple whitespaces and leading whitespaces are ignored. Everything is case-insensitive.
+The assembler is quite permissive style-wise. Commas are considered whitespaces, and whitespaces are considered separators. Multiple whitespaces and leading whitespaces are ignored. Everything is case-insensitive.
 
 ### Numbers
 
-Numbers can be written in decimal (eg. ``123``), hexadecimal (eg. ``0x7b``) and binary (eg. `0b1111011`) system. Dots are allowed when writing in binary and are ignored. Negative numbers aren't allowed and too big numbers will raise errors.
+Numbers can be written in decimal (e.g. ``123``), hexadecimal (e.g. ``0x7b``), and binary (e.g., `0b1111011`) systems. Dots are allowed when writing in binary and are ignored. Negative numbers aren't allowed, and too big numbers will raise errors.
 
 ### Variables
 
 Although a bit controversial, the assembler supports variables. Variables are optional aliases for registers. The assembler will allocate the first free register for a new variable name and remember the mapping. Use ``#free <name>`` to release the register binding (the runtime value is not cleared).
 
-Variables can contain everything but whitespaces, semicolons and commas and mustn't start with # or a digit. By convention, variables should be written in brackets, e.g. ``[start]``. They are case‑insensitive. It is possible to use both registers and variables in the same program, but it can quickly result in a mess, as variables can overwrite registers and vice-versa and is strongly advised against.
+Variables can contain everything but whitespaces, semicolons, and commas, and mustn't start with # or a digit. By convention, variables should be written in brackets, e.g., ``[start]``. They are case‑insensitive. It is possible to use both registers and variables in the same program, but it can quickly result in a mess, as variables can overwrite registers and vice versa, and it is strongly advised against.
 
 You can turn variables off with the ``-novars`` flag.
 
@@ -45,7 +45,7 @@ shri [StArT], 1 ;they are - as everything else - case insensitive
 
 #free [start] ;you can free them (but values stay so you should be super cautious. See "Directives & Constants")...
 addi [bla], 1 ;so that other variables can use the freed registers
-;because the values aren't freed the [bla] now holds `pc / 2 + 1`
+;because the values aren't freed, the [bla] now holds `pc / 2 + 1`
 ```
 
 Which is equivalent to:
@@ -61,16 +61,16 @@ addi r1, 1
 
 ### Directives & Constants
 
-There are also *directives* and *compile time constants*. All of them start with #. Directives are in their own lines while constants act like numbers.
+There are also *directives* and *compile-time constants*. All of them start with #. Directives are in their own lines, while constants act like numbers.
 
-- ``#starts param`` (param denotes the parameter): *Directive* to pad with flag instructions so before the next instruction there are `param` instructions. This can be useful when developing the program, so that relative jumps need not be corrected when adding code.
-- ``#free param``: *Directive* to mark the register, where the variable by the name of ``param`` is saved, free. In other words it frees the register binding, but not its runtime value; later variables may reuse that register. The ``#size`` and co. do include it to their count.
+- ``#starts param`` (param denotes the parameter): *Directive* to pad with flag instructions so before the next instruction, there are `param` instructions. This can be useful when developing the program, so that relative jumps need not be corrected when adding code.
+- ``#free param``: *Directive* to mark the register, where the variable by the name of ``param`` is saved, free. In other words, it frees the register binding, but not its runtime value; later variables may reuse that register. The ``#size`` and co. do include it in their count.
 
 - ``#size``: *Compile time constant* that expands to the number of instructions in the program.
 - ``#before``: *Compile time constant* that expands to the number of instructions before the current instructions.
 - ``#after``: *Compile time constant* that expands to the number of instructions after the current instructions.
 
-Compile time constants can be modified by adding a predetermined amount and multipliying them with a predetermined amount. So ``#constant:a:b`` means ``(#constant * b) + a``. You can omit adding and multiplying like this ``#constant`` and ``#constant:a``.
+Compile-time constants can be modified by adding a predetermined amount and multiplying them by a predetermined amount. So ``#constant:a:b`` means ``(#constant * b) + a``. You can omit adding and multiplying like this ``#constant`` and ``#constant:a``.
 
 ```asm
 directives_and_constants 0
@@ -85,19 +85,19 @@ ldi #before:+10:-1 ;-> 8*(-1) + 10 = 10 - 8 = 2
 
 ## Usage
 
-Compile the assembler normally. For instance with:
+Compile the assembler normally. For instance, with:
 
 ```bash
 cc -O2 -Wall assembler.c -o assembler
 ```
 
-To assemble a file run the assembler on the file and pipe the output to the output file. This works as the errors are written to stderr. Note that the file will be overwritten even if the assembler fails.
+To assemble a file, run the assembler on the file and pipe the output to the output file. This works as the errors are written to stderr. Note that the file will be overwritten even if the assembler fails.
 
 ```bash
 ./assembler example.asm > example.c
 ```
 
-To avoid accidental overwrite on errors you can use this instead:
+To avoid accidental overwrite on errors, you can use this instead:
 
 ```bash
 ./assembler example.asm > tmp.c && mv tmp.c example.c
@@ -110,7 +110,7 @@ There are some flags you can use:
 - ``-decimal``: Emit instructions as decimal rather than binary.
 - ``-obfuscate``: Equivalent to ``-nocomments -decimal``.
 
-A very useful trick is to use a Makefile to assemble your bots with one command (change your assemble, bots and main.c path and set your own compiler of choice; put into your main folder):
+A very useful trick is to use a Makefile to assemble your bots with one command (change your assemble, bots, and main.c paths and set your own compiler of choice; put it into your main folder):
 
 ```Makefile
 CC := cc
@@ -123,19 +123,19 @@ GENC := $(ASM:.asm=.c)
 all: main
 
 assembler: assembler/assembler.c
-	$(CC) $(CFLAGS) -o $@ $<
+    $(CC) $(CFLAGS) -o $@ $<
 
 bots/%.c: bots/%.asm assembler
-	@tmpfile=$$(mktemp) || exit 1; \
-	echo "./assembler $< > $@"; \
-	trap 'rm -f "$$tmpfile"' EXIT; \
-	./assembler -vartable $< > "$$tmpfile" && mv "$$tmpfile" $@
+    @tmpfile=$$(mktemp) || exit 1; \
+ echo "./assembler $< > $@"; \
+ trap 'rm -f "$$tmpfile"' EXIT; \
+ ./assembler -vartable $< > "$$tmpfile" && mv "$$tmpfile" $@
 
 main: main.c $(GENC)
-	$(CC) $(CFLAGS) -o $@ main.c
+    $(CC) $(CFLAGS) -o $@ main.c
 
 clean:
-	$(RM) main assembler $(GENC)
+    $(RM) main assembler $(GENC)
 ```
 
 ## License
@@ -147,3 +147,4 @@ You are free to use, modify, and redistribute this software, provided that:
 1. Credit is given to Gregorcnik as the original author.
 2. Any redistributed or derivative work is released under the same license.
 3. No warranty is provided. Use at your own risk
+
