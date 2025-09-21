@@ -4,7 +4,7 @@ A transpiler for [qyx22122/BattelASM](https://github.com/qyx22122/BattelASM). It
 
 ## Syntax
 
-The first line of the file must be a header line. The header line consists of the program name and program offset separated by a space. The program name must be a valid c variable name, and the offset must be within the range [0, 2^10 - program_size).
+The first line of the file must be a header line. The header line consists of the program name and program offset separated by a space. The program name must be a valid c variable name, and the offset must be within the range ``[-1, 2^10 - program_size)``. If the offset is set to ``-1`` the assembler with set it to a random number.
 
 For opcodes see [BattelASM/arch.ods](https://github.com/qyx22122/BattelASM/blob/main/arch.ods).
 
@@ -65,7 +65,6 @@ There are also *directives* and *compile-time constants*. All of them start with
 
 - ``#starts param`` (param denotes the parameter): *Directive* to pad with flag instructions so before the next instruction, there are `param` instructions. This can be useful when developing the program, so that relative jumps need not be corrected when adding code.
 - ``#free param``: *Directive* to mark the register, where the variable by the name of ``param`` is saved, free. In other words, it frees the register binding, but not its runtime value; later variables may reuse that register.
-- ``#repeat param1 param2``: *Directive* to repeat next ``param1`` instructions ``param2`` times. Nested repeats aren't supported.
 
 - ``#size``: *Compile time constant* that expands to the number of instructions in the program.
 - ``#before``: *Compile time constant* that expands to the number of instructions before the current instructions.
