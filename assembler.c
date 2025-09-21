@@ -209,10 +209,6 @@ void countInstructions(FILE *fin, size_t *ret) {
 				int param;
 				sscanf(line, "%*s %d", &param);
 				*ret = param;
-			} else if (strncasecmp(line, "#repeat", 7) == 0) {
-				int param1, param2;
-				sscanf(line, "%*s %d %d", &param1, &param2);
-				*ret += param1 * (param2 - 1);
 			}
 		} else {
 			size_t i = 0;
@@ -238,9 +234,6 @@ int compileFile(FILE *fin, Options *opts) {
 	size_t instruction_num = 0;
 	ssize_t line_length;
 
-	fint repeat_arr[1024];
-	int repeat_what = 0, repeat_times = 0, repeat_already = 0;
-
 	size_t program_size;
 	countInstructions(fin, &program_size);
 	errno = 0;
@@ -258,7 +251,7 @@ int compileFile(FILE *fin, Options *opts) {
 		printf("static uint16_t %s_mem[] = {\n", name);
 	} else {
 		fprintf(stderr, "Header line is missing (first line in the file must be 'name offset'. eg. example 10)\n");
-		return 1;
+		return 0;
 	}
 
 	if (offset == -1) {
@@ -319,21 +312,6 @@ int compileFile(FILE *fin, Options *opts) {
 					ok = 0;
 					goto cleanup;
 				}
-			} else if (strncasecmp(line, "#repeat", 7) == 0) {
-				int param1, param2;
-				if (sscanf(line, "%*s %d %d", &param1, &param2) != 2) {
-					fprintf(stderr, "Error on line %zu: #repeat needs 2 parameters - what and how many times\n", linenum);
-					ok = 0;
-					goto cleanup;
-				}
-				if (repeat_what != 0) {
-					fprintf(stderr, "Error on line %zu: nesting #repeat-s isn't supported\n", linenum);
-					ok = 0;
-					goto cleanup;
-				}
-				repeat_what = param1;
-				repeat_times = param2 - 1;
-				repeat_already = 0;
 			}
 
 		} else { // An instruction
@@ -356,31 +334,8 @@ int compileFile(FILE *fin, Options *opts) {
 					printf(",\n");
 
 				instruction_num++;
-
-				if (repeat_what != repeat_already) {
-					repeat_arr[repeat_already] = l;
-					repeat_already++;
-				}
-				if (repeat_what == repeat_already) {
-					while (repeat_times--) {
-						for (int i = 0; i < repeat_what; i++) {
-							putchar('\t');
-							if (opts->decimal_instr)
-								printf("%d", repeat_arr[i]);
-							else
-								writeBin(stdout, repeat_arr[i]);
-							if (opts->comments)
-								printf(", // repeat %d\n", repeat_times + 1);
-							else
-								printf(",\n");
-							instruction_num++;
-						}
-					}
-					repeat_what = 0;
-					repeat_already = 0;
-				}
-
 			}
+
 		}
 	}
 
