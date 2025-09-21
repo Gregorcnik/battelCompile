@@ -254,7 +254,7 @@ int compileFile(FILE *fin, Options *opts) {
 
 	char name[255];
 	int offset;
-	if (fscanf(fin, "%s %d", name, &offset) == 2) {
+	if (fscanf(fin, "%s %d ", name, &offset) == 2) {
 		printf("static uint16_t %s_mem[] = {\n", name);
 	} else {
 		fprintf(stderr, "Header line is missing (first line in the file must be 'name offset'. eg. example 10)\n");
@@ -265,7 +265,10 @@ int compileFile(FILE *fin, Options *opts) {
 		offset = rand() % ((1 << 10) - program_size);
 	}
 
-	while ((line_length = getline(&line, &cap, fin)) != -1) {
+	while ((line_length = getline(&line, &cap, fin)) != -1) {			
+		linenum++;
+		
+		// Add newline of not there
 		{
 			if (line[line_length - 1] != '\n') {
 				if (cap <= (size_t)line_length + 1) {
@@ -283,7 +286,8 @@ int compileFile(FILE *fin, Options *opts) {
 			}
 		}
 
-		if (line[0] == '#') {
+		if (line[0] == '#') { // A directive
+
 			if (strncasecmp(line, "#starts", 7) == 0) {
 				int param;
 				sscanf(line, "%*s %d", &param);
@@ -332,7 +336,7 @@ int compileFile(FILE *fin, Options *opts) {
 				repeat_already = 0;
 			}
 
-		} else {
+		} else { // An instruction
 
 			fint l;
 			int status = compileLine(line, program_size, instruction_num, &l, opts->vars);
@@ -376,7 +380,6 @@ int compileFile(FILE *fin, Options *opts) {
 					repeat_already = 0;
 				}
 
-				linenum++;
 			}
 		}
 	}
