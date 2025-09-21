@@ -22,6 +22,7 @@ No warranty is provided. Use at your own risk.
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 #define inside(low, mid, high) ((low) <= (mid) && (mid) <= (high))
 typedef uint16_t fint;
@@ -131,6 +132,8 @@ int compileFile(FILE *fin, Options *opts);
 void countInstructions(FILE *fin, size_t *ret);
 
 int main(int argc, char *argv[]) {
+	srand(time(0));
+
 	int argi = 1;
 	Options opts = {.comments = true, .var_table = false, .decimal_instr = false, .vars = true};
 
@@ -258,11 +261,15 @@ int compileFile(FILE *fin, Options *opts) {
 		return 1;
 	}
 
+	if (offset == -1) {
+		offset = rand() % ((1 << 10) - program_size);
+	}
+
 	while ((line_length = getline(&line, &cap, fin)) != -1) {
 		{
 			if (line[line_length - 1] != '\n') {
 				if (cap <= (size_t)line_length + 1) {
-					size_t cap = (size_t)line_length + 2;
+					cap = (size_t)line_length + 2;
 					char *tmp = realloc(line, cap);
 					if (!tmp) {
 						perror("realloc");
@@ -620,7 +627,7 @@ int getRegister(char *symbol, fint *ret, bool use_vars) {
 				goto special_name;
 		}
 
-		if (num <= 32) {
+		if (num < 32) {
 			*ret = num;
 			return 1;
 		} else {
@@ -653,6 +660,7 @@ special_name:;
 		*ret = empty;
 	} else {
 		snprintf(ERROR_TEXT, 255, "Invalid register (you have variables turned off): '%s'", symbol);
+		return 0;
 	}
 
 	return 1;
